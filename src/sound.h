@@ -39,7 +39,7 @@ void fillBuffer(short *buffer){
 	double *data;
 
 	wavlength=wav_length(hwav);
-	data=wav_getdata(hwav);
+	data=wav_getData(hwav);
 	for (i=0;i<BufferLength;++i){
 		if (sampleCounter>=wavlength){
 			buffer[i]=0;

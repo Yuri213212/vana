@@ -147,7 +147,7 @@ void graph_analyze(HWAV hwav,double tempospeed,double amp){
 
 	samplerate=wav_samplerate(hwav);
 	length=wav_length(hwav);
-	data=wav_getdata(hwav);
+	data=wav_getData(hwav);
 	graphLength=ceil(length*tempospeed/(60.0*samplerate));
 	graphStart=(int *)malloc(graphLength*sizeof(int));
 	graphColor=(int (*)[DisplayCount])malloc(graphLength*(DisplayCount*sizeof(int)));

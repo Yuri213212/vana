@@ -1,7 +1,7 @@
 /***
 
-vana v1.0
-Copyright (C) 2020 Yuri213212
+vana v1.1
+Copyright (C) 2020-2021 Yuri213212
 Site:https://github.com/Yuri213212/vana
 Email: yuri213212@vip.qq.com
 License: CC BY-NC-SA 4.0
@@ -9,59 +9,7 @@ https://creativecommons.org/licenses/by-nc-sa/4.0/
 
 ***/
 
-#define UNICODE
-#define _UNICODE
-
-#include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
-#include <math.h>
-#ifdef LANG_EN
-#include "lang_en/vana_ui.h"
-#include "lang_en/vana_help.h"
-#endif
-#ifdef LANG_CH
-#include "lang_ch/vana_ui.h"
-#include "lang_ch/vana_help.h"
-#endif
-#ifdef LANG_JP
-#include "lang_jp/vana_ui.h"
-#include "lang_jp/vana_help.h"
-#endif
-#include "iniFormat.h"
-#include "wavFile.h"
-
-#define tbuflen		1024
-#define clwidth		721
-#define clheight	494
-
-enum menuEnum{
-	MENU_Load=0x8001,
-	MENU_Play,
-	MENU_Pause,
-	MENU_Stop,
-	MENU_Help,
-};
-
-#include "settings.h"
-
-wchar_t wbuf[tbuflen],fbuf[tbuflen];
-int cxScreen,cyScreen,width,height,selectRow=0,currentRow=0;
-HWAV hwav=NULL,hwavRead;
-HDC hdcMem,hdcGraph;
-HBITMAP hBitmapGraph=NULL;
-HPEN hPenGray,hPenLTGray,hPenRed;
-HBRUSH hBrushBg[NoteCount],hBrushBg0,hBrushRed;
-RECT bgRect={0,0,clwidth,clheight};
-SCROLLINFO vsi={sizeof(SCROLLINFO),SIF_DISABLENOSCROLL|SIF_PAGE|SIF_POS|SIF_RANGE,0,0,16,0,0};
-
-#include "dialog.h"
-#include "graph.h"
-#include "sound.h"
-#include "defproc.h"
-#include "drawicon.h"
+#include "vana.h"
 
 int translateKey(int x){
 	x&=0x3fff;
@@ -137,6 +85,8 @@ void refershWindow(HWND hwnd){
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam){
+	static HWND hwndTooltip=NULL;
+	static TOOLINFOW ti[DisplayCount]={};
 	static SCROLLINFO hsi={sizeof(SCROLLINFO),SIF_DISABLENOSCROLL|SIF_PAGE|SIF_POS|SIF_RANGE,0,271,16,256,0};
 	static HWAVEOUT hWaveOut=NULL;
 	static OPENFILENAMEW openFileName={};
@@ -151,6 +101,25 @@ LRESULT CALLBACK WndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam){
 
 	switch (message){
 	case WM_CREATE:
+		hwndTooltip=CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,NULL,WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,hwnd,NULL,hInstance,NULL);
+		SetWindowPos(hwndTooltip,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+		for (i=0;i<DisplayCount;++i){
+			ti[i].cbSize=sizeof(TOOLINFOW);
+			ti[i].uFlags=TTF_SUBCLASS;
+			ti[i].hwnd=hwnd;
+			ti[i].uId=i;
+			ti[i].rect.left=i*6+1;
+			ti[i].rect.top=0;
+			ti[i].rect.right=i*6+6;
+			ti[i].rect.bottom=clheight;
+			ti[i].hinst=hInstance;
+			ti[i].lpszText=LPSTR_TEXTCALLBACK;
+			SendMessageW(hwndTooltip,TTM_ADDTOOLW,0,(LPARAM)&ti[i]);
+		}
+		SendMessageW(hwndTooltip,TTM_SETDELAYTIME,TTDT_AUTOPOP,0x7FFF);
+		SendMessageW(hwndTooltip,TTM_SETDELAYTIME,TTDT_INITIAL,0);
+		SendMessageW(hwndTooltip,TTM_SETDELAYTIME,TTDT_RESHOW,0);
+
 		QueryPerformanceCounter(&buttonwaitto);
 		QueryPerformanceFrequency(&buttonwait);
 		buttonwait.QuadPart/=10;//100ms
@@ -303,6 +272,28 @@ LRESULT CALLBACK WndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam){
 		ReleaseDC(hwnd,hdc);
 		ValidateRect(hwnd,NULL);
 		return 0;
+	case WM_NOTIFY:{
+		NMHDR *pnmhdr;
+
+		pnmhdr=(NMHDR *)lParam;
+		switch (pnmhdr->code){
+			case TTN_GETDISPINFOW:{
+				static wchar_t buf0[4];
+
+				NMTTDISPINFOW *pnmtdi;
+				int id;
+
+				id=pnmhdr->idFrom;
+				pnmtdi=(NMTTDISPINFOW *)lParam;
+				if (Transpose>6){
+					notetext(buf0,pnmhdr->idFrom+StartNote-Transpose+12);
+				}else{
+					notetext(buf0,pnmhdr->idFrom+StartNote-Transpose);
+				}
+				swprintf(pnmtdi->szText,szTooltip,buf0,notetext(NULL,pnmhdr->idFrom+StartNote));
+			break;}
+		}
+		break;}
 	case WM_COMMAND:
 		switch (LOWORD(wParam)){
 		case MENU_Load:
@@ -553,7 +544,6 @@ LRESULT CALLBACK WndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam){
 int main(){
 	int argc;
 	wchar_t **argv;
-	HINSTANCE hInstance;
 	int iCmdShow;
 	STARTUPINFOW si;
 

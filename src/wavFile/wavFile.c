@@ -1,31 +1,4 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-
-struct wave{
-	int length;
-	int buflen;
-	double samplerate;
-	double *data;
-};
-
-struct wavHeader{
-	int32_t RIFF;		//"RIFF",0x46464952
-	int32_t size_add36;	//typical size+36, or more for extra information
-	int32_t WAVE;		//"WAVE",0x45564157
-	int32_t fmt;		//"fmt ",0x20746d66
-	int32_t size_eq16;	//16
-	int16_t format;		//1 for integer, 3 for float
-	int16_t channels;	//1 for mono, 2 for stereo
-	int32_t samplerate;
-	int32_t byterate;	//samplerate*align
-	int16_t align;		//channels*((samplebits+7)>>3)
-	int16_t samplebits;	//8 for unsigned char, 16 for short, 32 for int/float
-	int32_t data;		//"data",0x61746164
-	int32_t size;		//length*align
-};
+#include "wavFile.h"
 
 int16_t data2short(double x,int amp){
 	int cdata;
@@ -76,7 +49,7 @@ void wav_clear(struct wave *wav){
 	wav->length=0;
 }
 
-void wav_addpoint(struct wave *wav,double point){
+void wav_addPoint(struct wave *wav,double point){
 	double *a;
 
 	if (!wav) return;
@@ -91,7 +64,7 @@ void wav_addpoint(struct wave *wav,double point){
 	++wav->length;
 }
 
-void wav_adddata(struct wave *wav,double *datai,int length){
+void wav_addData(struct wave *wav,double *datai,int length){
 	double *a;
 
 	if (!wav||!datai) return;
@@ -106,9 +79,9 @@ void wav_adddata(struct wave *wav,double *datai,int length){
 	wav->length+=length;
 }
 
-void wav_addwav(struct wave *wav,struct wave *wav2){
+void wav_addWav(struct wave *wav,struct wave *wav2){
 	if (!wav||!wav2) return;
-	wav_adddata(wav,wav2->data,wav2->length);
+	wav_addData(wav,wav2->data,wav2->length);
 }
 
 struct wave *wav_concat(struct wave *wav1,struct wave *wav2){
@@ -116,14 +89,19 @@ struct wave *wav_concat(struct wave *wav1,struct wave *wav2){
 
 	if (!wav1||!wav2) return NULL;
 	wav=wav_new(wav1->samplerate);
-	wav_adddata(wav1,wav1->data,wav1->length);
-	wav_adddata(wav2,wav2->data,wav2->length);
+	wav_addData(wav1,wav1->data,wav1->length);
+	wav_addData(wav2,wav2->data,wav2->length);
 	return wav;
 }
 
 double wav_samplerate(struct wave *wav){
-	if (!wav) return _nan();
+	if (!wav) return NAN;
 	return wav->samplerate;
+}
+
+void wav_setSamplerate(struct wave *wav,double samplerate){
+	if (!wav) return;
+	wav->samplerate=samplerate;
 }
 
 int wav_length(struct wave *wav){
@@ -131,12 +109,33 @@ int wav_length(struct wave *wav){
 	return wav->length;
 }
 
-double *wav_getdata(struct wave *wav){
+void wav_setLength(struct wave *wav,int length){
+	double *a;
+	int i;
+
+	if (!wav) return;
+	if (length<0) return;
+	if (length<=wav->buflen){
+		wav->length=length;
+		return;
+	}
+	for (wav->buflen<<=1;length>=wav->buflen;wav->buflen<<=1);
+	a=(double *)malloc(wav->buflen*sizeof(double));
+	memcpy(a,wav->data,wav->length*sizeof(double));
+	for (i=wav->length;i<length;++i){
+		a[i]=0.0;
+	}
+	free(wav->data);
+	wav->data=a;
+	wav->length=length;
+}
+
+double *wav_getData(struct wave *wav){
 	if (!wav) return NULL;
 	return wav->data;
 }
 
-double *wav_copydata(struct wave *wav){
+double *wav_copyData(struct wave *wav){
 	double *a;
 
 	if (!wav) return NULL;
@@ -156,6 +155,7 @@ struct wave *wav_read(FILE *fp){
 	double *a;
 	struct wave *wav;
 
+	if (!fp) return NULL;
 	if (!fread(&head,sizeof(struct wavHeader),1,fp)) return NULL;
 	if (head.RIFF!=0x46464952) return NULL;
 	if (head.size_add36<head.size+36) return NULL;
@@ -244,7 +244,7 @@ struct wave *wav_read(FILE *fp){
 		free(a);
 		return NULL;
 	}
-	wav_adddata(wav,a,length);
+	wav_addData(wav,a,length);
 	free(a);
 	return wav;
 }
@@ -255,6 +255,8 @@ void wav_write(FILE *fp,struct wave *wav){
 	int length,i;
 	int16_t *data16;
 
+	if (!fp) return;
+	if (!wav) return;
 	length=wav->length;
 	data16=(int16_t *)malloc(length*sizeof(int16_t));
 	for (i=0;i<length;++i){
@@ -278,13 +280,91 @@ void wav_write(FILE *fp,struct wave *wav){
 	free(data16);
 }
 
+void wav_trimEnd(struct wave *wav,double threshold){
+	int i;
+
+	if (!wav) return;
+	if (DOUBLE2LONG(threshold)==DOUBLE2LONG(0.0)){
+		for (i=wav->length-1;i>=0;--i){
+			if (DOUBLE2LONG(wav->data[i])!=DOUBLE2LONG(0.0)) return;
+			--wav->length;
+		}
+	}else{
+		for (i=wav->length-1;i>=0;--i){
+			if (fabs(wav->data[i])>threshold) return;
+			--wav->length;
+		}
+	}
+}
+
+int wav_compare(struct wave *wav,struct wave *wav2,double threshold){
+	int length,i;
+
+	if (!wav) return -1;
+	if (!wav2) return -1;
+	if (wav==wav2) return 0;
+	length=wav->length;
+	if (length!=wav2->length) return 1;
+	if (DOUBLE2LONG(threshold)==DOUBLE2LONG(0.0)){
+		if (memcmp(wav->data,wav2->data,length*sizeof(double))) return 1;
+	}else{
+		for (i=0;i<length;++i){
+			if (fabs(wav->data[i]-wav2->data[i])>threshold) return 1;
+		}
+	}
+	return 0;
+}
+
+double wav_amplitude(struct wave *wav){
+	int length,i;
+	double max=-1.0,min=1.0;
+
+	if (!wav) return NAN;
+	length=wav->length;
+	if (!length) return NAN;
+	for (i=0;i<length;++i){
+		if (max<wav->data[i]){
+			max=wav->data[i];
+		}
+		if (min>wav->data[i]){
+			min=wav->data[i];
+		}
+	}
+	return max>=-min?max:-min;
+}
+
+void wav_normalize(struct wave *wav,double max){
+	int length,i;
+
+	if (!wav) return;
+	if (DOUBLE2LONG(max)==DOUBLE2LONG(0.0)){
+		max=wav_amplitude(wav);
+	}
+	length=wav->length;
+	for (i=0;i<length;++i){
+		wav->data[i]/=max;
+	}
+}
+
+void wav_amplify(struct wave *wav,double a){
+	int length,i;
+
+	if (!wav) return;
+	length=wav->length;
+	for (i=0;i<length;++i){
+		wav->data[i]*=a;
+	}
+}
+
 struct wave *wav_resample(struct wave *wavi,double samplerate){
 	int length,fs,cs,fe,i,j;
 	double speed,start,end,out;
 	double *a;
 	struct wave *wav;
 
-	if (!wavi||!(samplerate>0.0)) return NULL;
+	if (!wavi) return NULL;
+	if (!(samplerate>0.0)) return NULL;
+	if (DOUBLE2LONG(samplerate)==DOUBLE2LONG(wavi->samplerate)) return wav_clone(wavi);
 	wav=wav_new(samplerate);
 	length=ceil(wavi->length*samplerate/wavi->samplerate);
 	a=(double *)malloc(length*sizeof(double));
@@ -306,16 +386,18 @@ struct wave *wav_resample(struct wave *wavi,double samplerate){
 		}
 		a[i]=out;
 	}
-	wav_adddata(wav,a,length);
+	wav_addData(wav,a,length);
 	free(a);
 	return wav;
 }
 
-double analysetempo(struct wave *wavpwr,double left,double right,int density){
+double analyzeTempo(struct wave *wavpwr,double left,double right,int density){
 	double w0,cs,sn,a,max;
 	int channelcount,result,i,j;
 	double *channel;
 
+	if (!wavpwr) return NAN;
+	if (DOUBLE2LONG(left)==DOUBLE2LONG(right)) return left;
 	channelcount=(right-left)*density+1;
 	channel=(double *)malloc(channelcount*sizeof(double));
 	max=0.0;
@@ -338,19 +420,24 @@ double analysetempo(struct wave *wavpwr,double left,double right,int density){
 	return (double)result/density+left;
 }
 
-double wav_analysetempo(struct wave *wav,int min,int max){
-	const double cut=1.0/8.0;
-
+double wav_analyzeTempo(struct wave *wav,int min,int max,double trim,int limit){
 	double sum,result;
-	int framerate,window,left,right,i,j,n;
+	int left,right,window,i,j,n;
 	struct wave *wavpwr;
 
-	if (!wav) return _nan();
-	framerate=(max+119)/60*2;
-	window=wav->samplerate/framerate;
+	if (!wav) return NAN;
+	if (min>max) return NAN;
+	if (trim<0.0||trim>=0.5) return NAN;
+	if (min==max) return (double)min;
+	left=wav->length*trim;
+	right=wav->length*(1.0-trim);
+	if (left==right) return NAN;
+	if (limit<=0){
+		window=1;
+	}else{
+		window=ceil((double)(right-left)/limit);
+	}
 	wavpwr=wav_new(wav->samplerate/window);
-	left=wav->length*cut;
-	right=wav->length*(1.0-cut);
 	for (j=0;;++j){
 		sum=0.0;
 		for (i=0;i<window;++i){
@@ -358,11 +445,11 @@ double wav_analysetempo(struct wave *wav,int min,int max){
 			if (n>=right) goto next;
 			sum+=wav->data[n]*wav->data[n];
 		}
-		wav_addpoint(wavpwr,sum);
+		wav_addPoint(wavpwr,sum);
 	}
 next:
-	result=analysetempo(wavpwr,(double)min,(double)max,1);
-	result=analysetempo(wavpwr,result-1.0,result+1.0,100);
+	result=analyzeTempo(wavpwr,(double)min,(double)max,1);
+	result=analyzeTempo(wavpwr,result-1.0,result+1.0,100);
 	wav_delete(wavpwr);
 	return result;
 }

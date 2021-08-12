@@ -1,7 +1,7 @@
 #define NoteCount	12
 
-int StartNote=0,RefNote=48,CursorPos=32,DefBaseNote=57,DefTranspose=0,AutoTempoMin=128,AutoTempoMax=255,DefSpeed=8,DefHighlight=16,DefOffset=0,DefVolume=256,LengthLimit=65536;
-double DefBaseFreq=440.0,DefAmplifyDB=0.0;
+int StartNote=0,RefNote=48,CursorPos=32,DefBaseNote=57,DefTranspose=0,DefAutoTempoMin=128,DefAutoTempoMax=255,DefAutoSet=1,AutoLengthLimit=4096,DefSpeed=8,DefHighlight=16,DefOffset=0,DefVolume=256,LengthLimit=65536;
+double DefBaseFreq=440.0,DefTempo=150.0,AutoTrim=0.125,DefAmplifyDB=0.0;
 float ThresDB=72.0,Depress=0.5,MinColor=3.0,Gamma=0.5;
 
 int Transpose,Speed,Highlight,Offset,Volume;
@@ -92,13 +92,35 @@ int readSettings(FILE *fp){
 	if (s){
 		sscanf(s,"%d",&DefTranspose);
 	}
-	s=ini_getValue(hini,"vana","AutoTempoMin");
+	s=ini_getValue(hini,"vana","DefTempo");
 	if (s){
-		sscanf(s,"%d",&AutoTempoMin);
+		sscanf(s,"%lf",&DefTempo);
 	}
-	s=ini_getValue(hini,"vana","AutoTempoMax");
+	s=ini_getValue(hini,"vana","DefAutoTempoMin");
 	if (s){
-		sscanf(s,"%d",&AutoTempoMax);
+		sscanf(s,"%d",&DefAutoTempoMin);
+	}
+	s=ini_getValue(hini,"vana","DefAutoTempoMax");
+	if (s){
+		sscanf(s,"%d",&DefAutoTempoMax);
+	}
+	s=ini_getValue(hini,"vana","DefAutoSet");
+	if (s){
+		sscanf(s,"%d",&DefAutoSet);
+	}
+	s=ini_getValue(hini,"vana","AutoTrim");
+	if (s){
+		sscanf(s,"%lf",&AutoTrim);
+		if (AutoTrim<0.0){
+			AutoTrim=0.0;
+		}
+		if (AutoTrim>0.25){
+			AutoTrim=0.25;
+		}
+	}
+	s=ini_getValue(hini,"vana","AutoLengthLimit");
+	if (s){
+		sscanf(s,"%d",&AutoLengthLimit);
 	}
 	s=ini_getValue(hini,"vana","DefSpeed");
 	if (s){

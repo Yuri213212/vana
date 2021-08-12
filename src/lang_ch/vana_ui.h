@@ -9,6 +9,8 @@ const wchar_t szErr_FileFormat[]=	L"这不是标准wav文件！";
 const wchar_t szErr_AudioDevice[]=	L"无法打开音频设备！";
 const wchar_t szErr_LengthLimit[]=	L"预计长度%d超出限制值%d，无法分析！";
 
+const wchar_t szTooltip[]=		L"%s（绝对%s）";
+
 const wchar_t szMenu_Load[]=		L"载入";
 const wchar_t szMenu_Play[]=		L"播放";
 const wchar_t szMenu_Pause[]=		L"暂停";
@@ -22,6 +24,7 @@ const wchar_t szLbl_Length[]=		L"长度";
 const wchar_t szLbl_Tuning[]=		L"调音";
 const wchar_t szLbl_Transpose[]=	L"移调";
 const wchar_t szLbl_Tempo[]=		L"节拍数";
+const wchar_t szBtn_AutoSet[]=		L"自动设定";
 const wchar_t szLbl_Speed[]=		L"速度";
 const wchar_t szLbl_Highlight[]=	L"高亮";
 const wchar_t szLbl_Amplify[]=		L"增益";
@@ -30,6 +33,7 @@ const wchar_t szErr_Tuning[]=		L"调音：无效的输入。";
 const wchar_t szErr_Frequency[]=	L"频率：无效的输入。";
 const wchar_t szErr_Transpose[]=	L"移调：无效的输入。";
 const wchar_t szErr_Tempo[]=		L"节拍数：无效的输入。";
+const wchar_t szErr_AutoSet[]=		L"自动设定：无效的输入。";
 const wchar_t szErr_Speed[]=		L"速度：无效的输入。";
 const wchar_t szErr_Highlight[]=	L"高亮：无效的输入。";
 const wchar_t szErr_Offset[]=		L"偏移：无效的输入。";
